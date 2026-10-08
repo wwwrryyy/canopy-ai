@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+
+# C++ Build artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+*.o
+
+# Datasets and extracted patches
+KylbergTextureDataset-1.0-png-originals/
+UCMerced_LandUse/
+data/
+
+# Model checkpoints and exports
+*.pt
+*.onnx
+exports/
+
+# Telemetry databases
+*.db
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
