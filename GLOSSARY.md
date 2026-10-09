@@ -8,6 +8,10 @@ Domain terminology for aerial drone-based multispectral crop monitoring and anom
 An aerial sensor image capturing crop ground cover, normalized to reflectance values in [0, 1].
 _Avoid_: Raw image, battlefield capture, scene
 
+**Multispectral Canopy Frame**:
+A calibrated multi-band sensor capture encapsulating raw spectral bands alongside synthesized vegetation indices (NDVI and NDRE).
+_Avoid_: Band stack, composite image, multi-layer TIFF
+
 **Canopy Anomaly**:
 A localized vegetation region exhibiting significant spectral divergence from healthy crop baseline (e.g. disease, pest damage, irrigation failure, weed invasion).
 _Avoid_: Threat, tactical target, generic defect
