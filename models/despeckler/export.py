@@ -1,33 +1,31 @@
 """
 export.py
 =========
-PyTorch → ONNX export for the Spiking Despeckler.
+PyTorch → ONNX export for the Convolutional Despeckler U-Net.
 
-Exports the SpikingUNet with static temporal unrolling: the T-step spiking
-loop is traced into the computation graph so the ONNX file contains no
-dynamic control flow and can be run by standard C++ ONNX Runtime.
+Exports the DespecklerUNet as a clean single-pass graph ready for high-throughput
+TensorRT engine compilation on NVIDIA Jetson edge platforms.
 """
 
 import os
 import argparse
-
 import torch
 
-from model import SpikingUNet
+from model import DespecklerUNet
 
 
 def export_onnx(args):
-    device = torch.device("cpu")  # Export on CPU for portability
+    device = torch.device("cpu")
 
-    model = SpikingUNet(
+    model = DespecklerUNet(
         in_channels=1,
         base_ch=args.base_ch,
-        num_steps=args.num_steps,
-        beta=args.beta,
     ).to(device)
 
-    # Load trained weights
+    # Load trained weights if provided
     if args.checkpoint:
+        if not os.path.isfile(args.checkpoint):
+            raise FileNotFoundError(f"Checkpoint not found: {args.checkpoint}")
         state = torch.load(args.checkpoint, map_location=device, weights_only=True)
         model.load_state_dict(state)
         print(f"[+] Loaded checkpoint: {args.checkpoint}")
@@ -37,7 +35,7 @@ def export_onnx(args):
     dummy = torch.randn(1, 1, args.height, args.width, device=device)
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
-    print(f"[*] Exporting ONNX with T={args.num_steps} static timesteps...")
+    print("[*] Exporting Despeckler U-Net to ONNX format...")
     torch.onnx.export(
         model,
         dummy,
@@ -56,18 +54,15 @@ def export_onnx(args):
 
     size_kb = os.path.getsize(args.output) / 1024
     print(f"[+] Exported: {args.output} ({size_kb:.1f} KB)")
-    print(f"    T={args.num_steps} timesteps statically unrolled into graph.")
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Export Spiking Despeckler to ONNX")
+    p = argparse.ArgumentParser(description="Export Despeckler U-Net to ONNX")
     p.add_argument("--checkpoint", type=str, default=None,
                     help="Path to trained .pt checkpoint.")
     p.add_argument("--output", type=str, default="../../exports/despeckler.onnx",
                     help="Output ONNX file path.")
     p.add_argument("--base-ch", type=int, default=32)
-    p.add_argument("--num-steps", type=int, default=8)
-    p.add_argument("--beta", type=float, default=0.85)
     p.add_argument("--height", type=int, default=128)
     p.add_argument("--width", type=int, default=128)
     return p.parse_args()

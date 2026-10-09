@@ -4,7 +4,7 @@ compute_vegetation_indices.py
 Vegetation index computation for multispectral drone imagery.
 
 Computes NDVI and NDRE from raw multispectral band arrays and appends
-them as additional channels to the image tensor fed into Stage 1 (SpikingUNet).
+them as additional channels to the image tensor fed into Stage 1 (DespecklerUNet).
 
 Supported inputs
 ----------------
@@ -70,7 +70,7 @@ def normalize_index(index: np.ndarray) -> np.ndarray:
     """Map a vegetation index from [-1, 1] to [0, 1].
 
     Required so index channels are on the same scale as the raw bands
-    before feeding into the SpikingUNet encoder.
+    before feeding into the DespecklerUNet encoder.
 
     Args:
         index: Index array in [-1, 1] float32.

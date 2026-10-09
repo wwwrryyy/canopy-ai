@@ -1,10 +1,10 @@
 """
 prepare_ucmerced.py
 ===================
-Prepares the UC Merced Land Use dataset for SNN training:
+Prepares the UC Merced Land Use dataset for model training:
 1. Extracts 128x128 patches from 256x256 aerial images (4 non-overlapping quadrants per image).
 2. Converts to grayscale [0, 1] for Stage 1 (Despeckler) & Stage 2 (Autoencoder).
-3. Preserves class folder structure for Stage 3 (Spiking Classifier).
+3. Preserves class folder structure for Stage 3 (Classifier).
 """
 
 import os
@@ -70,7 +70,7 @@ def prepare_ucmerced(raw_dir: str, out_dir: str, patch_size: int = 128):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Prepare UC Merced Land Use dataset for SNN training")
+    parser = argparse.ArgumentParser(description="Prepare UC Merced Land Use dataset for model training")
     parser.add_argument("--raw-dir", type=str, default="../UCMerced_LandUse/Images",
                         help="Path to UCMerced LandUse Images folder")
     parser.add_argument("--out-dir", type=str, default="../data/ucmerced_prepared",

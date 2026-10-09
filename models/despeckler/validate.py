@@ -1,10 +1,10 @@
 """
 validate.py
 ============
-PyTorch ↔ ONNX Runtime equivalence validation for the Spiking Despeckler.
+PyTorch ↔ ONNX Runtime equivalence validation for the Despeckler U-Net.
 
 Asserts that the ONNX model produces outputs within 10⁻⁴ tolerance of the
-native PyTorch model, as required by the PRD.
+native PyTorch model.
 """
 
 import argparse
@@ -14,18 +14,16 @@ import numpy as np
 import torch
 import onnxruntime as ort
 
-from model import SpikingUNet
+from model import DespecklerUNet
 
 
 def validate(args):
     device = torch.device("cpu")
 
     # --- Load PyTorch model ---
-    model = SpikingUNet(
+    model = DespecklerUNet(
         in_channels=1,
         base_ch=args.base_ch,
-        num_steps=args.num_steps,
-        beta=args.beta,
     ).to(device)
 
     if args.checkpoint:
@@ -82,15 +80,13 @@ def validate(args):
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Validate PyTorch ↔ ONNX equivalence for Spiking Despeckler"
+        description="Validate PyTorch ↔ ONNX equivalence for Despeckler U-Net"
     )
     p.add_argument("--checkpoint", type=str, default=None,
                     help="Path to trained .pt checkpoint.")
     p.add_argument("--onnx", type=str, default="../../exports/despeckler.onnx",
                     help="Path to exported ONNX model.")
     p.add_argument("--base-ch", type=int, default=32)
-    p.add_argument("--num-steps", type=int, default=8)
-    p.add_argument("--beta", type=float, default=0.85)
     p.add_argument("--height", type=int, default=128)
     p.add_argument("--width", type=int, default=128)
     p.add_argument("--tolerance", type=float, default=1e-4,

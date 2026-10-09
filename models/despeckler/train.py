@@ -1,7 +1,7 @@
 """
 train.py
 ========
-Training script for the Spiking Despeckler (Stage 1).
+Training script for the Convolutional Despeckler U-Net (Stage 1).
 
 Loss: MSE + SSIM to preserve structural edges while minimizing pixel error.
 Data: On-the-fly synthetic corruption using corruption.py.
@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-from model import SpikingUNet
+from model import DespecklerUNet
 from corruption import corrupt_image, load_and_normalize
 
 
@@ -149,11 +149,9 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] Device: {device}")
 
-    model = SpikingUNet(
+    model = DespecklerUNet(
         in_channels=1,
         base_ch=args.base_ch,
-        num_steps=args.num_steps,
-        beta=args.beta,
     ).to(device)
 
     if args.checkpoint and os.path.isfile(args.checkpoint):
@@ -174,7 +172,7 @@ def train(args):
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     mse_fn = nn.MSELoss()
 
-    print(f"[+] Training S-UNet for {args.epochs} epochs "
+    print(f"[+] Training Despeckler U-Net for {args.epochs} epochs "
           f"({len(dataset)} samples, batch_size={args.batch_size})")
 
     best_loss = float("inf")
@@ -213,7 +211,7 @@ def train(args):
 # ---------------------------------------------------------------------------
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train Spiking Despeckler (Stage 1)")
+    p = argparse.ArgumentParser(description="Train Despeckler U-Net (Stage 1)")
     p.add_argument("--data-dir", type=str, default=None,
                     help="Path to clean images. If omitted, uses synthetic terrain.")
     p.add_argument("--checkpoint", type=str, default=None,
@@ -224,10 +222,6 @@ def parse_args():
     p.add_argument("--batch-size", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--base-ch", type=int, default=32)
-    p.add_argument("--num-steps", type=int, default=8,
-                    help="Number of spiking timesteps T.")
-    p.add_argument("--beta", type=float, default=0.85,
-                    help="LIF membrane decay rate.")
     p.add_argument("--ssim-weight", type=float, default=0.5,
                     help="Weight of SSIM loss relative to MSE.")
     p.add_argument("--height", type=int, default=128)

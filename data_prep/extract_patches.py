@@ -2,7 +2,7 @@
 extract_patches.py
 ==================
 Extracts fixed-dimension (e.g. 128x128) texture patches from high-resolution
-raw dataset images (such as Kylberg Texture Dataset) for training SNNs.
+raw dataset images (such as Kylberg Texture Dataset) for model training.
 """
 
 import os
