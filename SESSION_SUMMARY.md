@@ -159,3 +159,21 @@
    - Created ARM64 Linux for Tegra (L4T) deployment image based on `nvcr.io/nvidia/l4t-ml`.
    - Automates the CMake cross-compilation of the native C++ `agri_core` anomaly extension for Jetson hardware.
    - Provided `docker-compose.yml` to cleanly map volumes and expose GPU Tensor Cores natively (`runtime: nvidia`).
+
+## 7. Key Milestones Completed: Milestone 6 Ground Control Station (GCS) Analytics Dashboard
+
+1. **Dashboard Interface (`gcs_dashboard.py`)**:
+   - Developed a robust Streamlit UI allowing agronomists to visually inspect the outputs of the drone edge node.
+   - Connected directly to the synced `flight_telemetry.db` SQLite database to parse raw flight anomaly logs in real-time.
+   
+2. **Geospatial Mapping**:
+   - Integrated `folium` and `streamlit-folium` to plot interactive Leaflet maps.
+   - Automatically overlays color-coded Variable-Rate Application (VRA) polygons loaded from `prescription_map.geojson`.
+   - Plotted dynamic point markers representing individual crop stresses (e.g. Fungal, Pests, Water Stress).
+
+3. **Metrics & Decision Support**:
+   - Built a dynamic KPI metrics panel calculating total affected area in square meters and summarizing the overall Liters of treatment fluid required based on the model's confidence gating.
+   - Added pathology filtering and confidence threshold sliders on the sidebar.
+
+4. **Testing and Validation**:
+   - Deployed `tests/test_gcs_dashboard.py` running mock SQLite / JSON fixture verifications to guarantee robust application startup even when drone data is empty or missing.
