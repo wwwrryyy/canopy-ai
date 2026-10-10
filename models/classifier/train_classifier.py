@@ -120,19 +120,24 @@ def train_classifier(args):
             device = torch.device("cpu")
     print(f"[*] Training AgriculturalClassifier on device: {device}")
 
+    if args.external_data_dir and not os.path.isdir(args.external_data_dir):
+        raise FileNotFoundError(f"External data directory does not exist: {args.external_data_dir}")
+
     # 1. Dataset & DataLoaders with deterministic validation split (no augmentations)
     train_samples = int(args.samples_per_class * 0.8)
     val_samples = max(int(args.samples_per_class * 0.2), 10)
 
     train_ds = AgriculturalPathologyDataset(
+        external_data_dir=args.external_data_dir,
         samples_per_class=train_samples,
         is_train=True,
         seed=42,
     )
     val_ds = AgriculturalPathologyDataset(
+        external_data_dir=args.external_data_dir,
         samples_per_class=val_samples,
         is_train=False,
-        seed=1337,
+        seed=42 if args.external_data_dir else 1337,
     )
 
     should_drop_last = len(train_ds) > args.batch_size
@@ -231,6 +236,7 @@ def train_classifier(args):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train Stage 3 MobileNetV3-Small Agricultural Classifier")
+    p.add_argument("--external-data-dir", type=str, default=None, help="Path to external pathology dataset folder (e.g., data/external_pathologies)")
     p.add_argument("--epochs", type=int, default=8, help="Number of training epochs (default: 8)")
     p.add_argument("--batch-size", type=int, default=32, help="Batch size (default: 32)")
     p.add_argument("--lr", type=float, default=3e-4, help="Learning rate (default: 3e-4)")

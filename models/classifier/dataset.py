@@ -22,7 +22,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from classifier import CLASS_NAMES
+try:
+    from classifier import CLASS_NAMES
+except ImportError:
+    from models.classifier.classifier import CLASS_NAMES
 
 CLASS_TO_IDX = {name: i for i, name in enumerate(CLASS_NAMES)}
 
@@ -39,6 +42,7 @@ class AgriculturalPathologyDataset(Dataset):
         samples_per_class: int = 400,
         target_size: Tuple[int, int] = (64, 64),
         is_train: bool = True,
+        val_split: float = 0.2,
         seed: Optional[int] = 42,
     ):
         super().__init__()
@@ -50,17 +54,51 @@ class AgriculturalPathologyDataset(Dataset):
             np.random.seed(seed)
 
         self.external_images: List[Tuple[str, int]] = []
-        if external_data_dir and os.path.isdir(external_data_dir):
+        self.base_patch_paths: List[str] = []
+
+        if external_data_dir is not None:
+            if not os.path.isdir(external_data_dir):
+                raise FileNotFoundError(f"External data directory does not exist: {external_data_dir}")
+
             for class_idx, class_name in enumerate(CLASS_NAMES):
                 folder = os.path.join(external_data_dir, class_name)
-                if os.path.isdir(folder):
-                    for ext in ("*.png", "*.jpg", "*.jpeg"):
-                        for p in glob.glob(os.path.join(folder, ext)):
-                            self.external_images.append((p, class_idx))
+                if not os.path.isdir(folder):
+                    alt_folder = os.path.join(external_data_dir, class_name.replace("/", "_"))
+                    if os.path.isdir(alt_folder):
+                        folder = alt_folder
 
-        # Base canopy patches for synthesis
-        self.base_patch_paths: List[str] = []
-        if not self.external_images:
+                if not os.path.isdir(folder):
+                    raise ValueError(
+                        f"External data directory '{external_data_dir}' is missing required class folder "
+                        f"for '{class_name}'. All {len(CLASS_NAMES)} classes must be present."
+                    )
+
+                paths: List[str] = []
+                for ext in ("*.png", "*.jpg", "*.jpeg"):
+                    paths.extend(glob.glob(os.path.join(folder, ext)))
+                paths = sorted(paths)
+                if len(paths) < 2:
+                    raise ValueError(
+                        f"Class '{class_name}' in '{external_data_dir}' contains {len(paths)} image(s). "
+                        f"At least 2 images are required to partition into train and validation sets."
+                    )
+                # Deterministic split per class
+                rng = random.Random(seed if seed is not None else 42)
+                shuffled = list(paths)
+                rng.shuffle(shuffled)
+                split_idx = int(round(len(shuffled) * (1.0 - val_split)))
+                split_idx = max(1, min(split_idx, len(shuffled) - 1))
+                split_paths = shuffled[:split_idx] if self.is_train else shuffled[split_idx:]
+                for p in split_paths:
+                    self.external_images.append((p, class_idx))
+
+            if not self.external_images:
+                raise ValueError(
+                    f"External data directory '{external_data_dir}' produced zero samples for partition "
+                    f"(is_train={self.is_train}, val_split={val_split}). Refusing to fall back silently to synthetic samples."
+                )
+        else:
+            # Base canopy patches for synthesis
             default_dirs = [
                 os.path.join(os.path.dirname(__file__), "..", "..", "data", "ucmerced_prepared", "agricultural_patches"),
                 os.path.join(os.path.dirname(__file__), "..", "..", "data", "patches"),

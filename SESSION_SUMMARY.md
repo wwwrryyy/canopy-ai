@@ -82,34 +82,38 @@
   ```
   - **Throughput**: **210.56 FPS** (C++ `agri_core`) / **290.68 FPS** (OpenCV fallback)
   - **Real-time Target**: Exceeds the $\ge 10.0$ FPS drone threshold by **$20\times$–$29\times$**.
-  - **Mean Latency**: 3.44 ms – 4.75 ms
+  - **Mean Latency**: 3.21 ms – 4.75 ms
 - **CodeRabbit Quality Gate**: Completed with **0 critical, 0 warning findings**.
 - **Graphify Watcher**: Master knowledge graph in `/Users/shawnsc/graphify-out` is synchronized and up-to-date.
 
 ---
 
-## 4. Next Session Handoff: Adding External Datasets & Scale Training
+## 4. Key Milestones Completed: Milestone 3 External Dataset Integration & Scale Training
 
-When returning for the next session, the foundation is completely ready to ingest external datasets:
+1. **Dataset Ingestion & Preparation ([`data_prep/prepare_external_pathologies.py`](data_prep/prepare_external_pathologies.py))**:
+   - **Multispectral Potato Plants ([`DatasetNinja`](data/multispectral-potato-plants-images-DatasetNinja/))**: Extracted 1,000 real `Healthy Canopy` (Class 0) and 1,000 real `Water Stress` (Class 3) crops from 1,800 aerial/field 5-band images using ground-truth bounding box annotations.
+   - **WeedsGalore UAV Dataset ([WACV 2025](data/weedsgalore/))**: Downloaded 321 MB dataset from GFZ and extracted 1,000 real `Weed Invasion` (Class 4) patches using connected-component semantic weed masks (`label >= 2`).
+   - **Calibrated Foliar Lesion Synthesis**: Synthesized 1,000 `Fungal/Bacterial Disease` (Class 1) and 1,000 `Pest Infestation` (Class 2) samples using real healthy potato leaves as the host background.
+   - Generated a balanced 5,000-crop dataset (1,000 per class) in [`data/external_pathologies/`](data/external_pathologies/).
 
-1. **Add Real External Datasets**:
-   - Download or place external agricultural datasets (e.g., PlantVillage, Agriculture-Vision, or CropDeep) into `data/`:
-     ```text
-     data/external_pathologies/
-     ├── Healthy Canopy/
-     ├── Fungal/Bacterial Disease/
-     ├── Pest Infestation/
-     ├── Water Stress/
-     └── Weed Invasion/
-     ```
-2. **Re-train with External Data**:
-   - Run `train_classifier.py` pointing to the external dataset directory:
+2. **Stratified Train/Val Partitioning ([`models/classifier/dataset.py`](models/classifier/dataset.py))**:
+   - Implemented `val_split=0.2` deterministic class-stratified partitioning (800 train / 200 val per class) with verified zero cross-split leakage.
+   - Added `--external-data-dir` argument support to [`models/classifier/train_classifier.py`](models/classifier/train_classifier.py).
+
+3. **Scale Training & Calibration**:
+   - Fine-tuned MobileNetV3-Small backbone on Apple Silicon MPS with AdamW and Cosine Annealing.
+   - Achieved **97.30% Validation Accuracy** across all 5 classes.
+   - Post-hoc temperature scaling optimized temperature $T = 0.8502$, dropping Expected Calibration Error (ECE) from 0.0786 to **0.0465**.
+   - Exported to [`exports/classifier.onnx`](exports/classifier.onnx) with **$3.34 \times 10^{-6}$** max absolute error parity with PyTorch.
+
+4. **Verification & Benchmark Results**:
+   - **Unit Tests**: All **27 tests across 4 test suites pass** in **0.23s**:
      ```bash
-     /opt/homebrew/Caskroom/miniforge/base/envs/battlefield/bin/python models/classifier/train_classifier.py \
-       --epochs 15 \
-       --batch-size 64 \
-       --output models/classifier/classifier_best.pt \
-       --export-onnx
+     /opt/homebrew/Caskroom/miniforge/base/envs/battlefield/bin/python -m unittest discover -s tests -p "test_*.py" -v
      ```
-3. **Verify and Benchmark**:
-   - Re-run `tests/test_classifier.py` and `deployment/drone_deployment_validation.py` to confirm updated ONNX accuracy and throughput.
+   - **Edge Deployment Benchmark**:
+     ```bash
+     python deployment/drone_deployment_validation.py --frames 15
+     ```
+     - **Throughput**: **311.46 FPS** ($31\times$ real-time threshold).
+     - **Mean Latency**: **3.21 ms**.

@@ -167,6 +167,73 @@ class TestAgriculturalClassifier(unittest.TestCase):
         self.assertGreaterEqual(confidence, 0.0)
         self.assertLessEqual(confidence, 1.0)
 
+    def test_external_dataset_loading_and_split(self):
+        """Verifies AgriculturalPathologyDataset loads from external_data_dir and partitions train/val."""
+        if not HAS_TORCH:
+            self.skipTest("torch not installed")
+        external_dir = os.path.join(PROJECT_ROOT, "data", "external_pathologies")
+        if not os.path.isdir(external_dir):
+            self.skipTest("data/external_pathologies not yet created")
+
+        train_ds = AgriculturalPathologyDataset(external_data_dir=external_dir, is_train=True, val_split=0.2, seed=42)
+        val_ds = AgriculturalPathologyDataset(external_data_dir=external_dir, is_train=False, val_split=0.2, seed=42)
+
+        self.assertGreater(len(train_ds), 0)
+        self.assertGreater(len(val_ds), 0)
+        self.assertGreater(len(train_ds.external_images), 0)
+        self.assertGreater(len(val_ds.external_images), 0)
+        # Check no intersection between train and val image paths
+        train_paths = {p for p, _ in train_ds.external_images}
+        val_paths = {p for p, _ in val_ds.external_images}
+        self.assertEqual(len(train_paths.intersection(val_paths)), 0)
+
+        tensor, label = train_ds[0]
+        self.assertEqual(tensor.shape, (3, 64, 64))
+        self.assertIn(label, list(range(len(CLASS_NAMES))))
+
+    def test_external_dataset_nonexistent_dir_raises(self):
+        """Verifies FileNotFoundError is raised when external_data_dir does not exist."""
+        if not HAS_TORCH:
+            self.skipTest("torch not installed")
+        nonexistent = os.path.join(PROJECT_ROOT, "data", "nonexistent_dir_xyz")
+        with self.assertRaises(FileNotFoundError):
+            AgriculturalPathologyDataset(external_data_dir=nonexistent)
+
+    def test_external_dataset_missing_class_raises(self):
+        """Verifies ValueError is raised when any required CLASS_NAMES folder is missing."""
+        if not HAS_TORCH:
+            self.skipTest("torch not installed")
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create only one class folder out of five
+            single_class_dir = os.path.join(tmp_dir, "Healthy Canopy")
+            os.makedirs(single_class_dir, exist_ok=True)
+            dummy_img = np.zeros((64, 64, 3), dtype=np.uint8)
+            self.assertTrue(cv2.imwrite(os.path.join(single_class_dir, "img1.png"), dummy_img))
+            self.assertTrue(cv2.imwrite(os.path.join(single_class_dir, "img2.png"), dummy_img))
+            with self.assertRaises(ValueError) as ctx:
+                AgriculturalPathologyDataset(external_data_dir=tmp_dir)
+            self.assertIn("missing required class folder", str(ctx.exception))
+
+    def test_external_dataset_single_image_class_raises(self):
+        """Verifies ValueError is raised when an external class has fewer than 2 images to split."""
+        if not HAS_TORCH:
+            self.skipTest("torch not installed")
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dummy_img = np.zeros((64, 64, 3), dtype=np.uint8)
+            # Create all 5 classes, but leave one with only 1 image
+            for idx, cname in enumerate(CLASS_NAMES):
+                cdir = os.path.join(tmp_dir, cname.replace("/", "_"))
+                os.makedirs(cdir, exist_ok=True)
+                count = 1 if idx == 0 else 2
+                for i in range(count):
+                    self.assertTrue(cv2.imwrite(os.path.join(cdir, f"img_{i}.png"), dummy_img))
+
+            with self.assertRaises(ValueError) as ctx:
+                AgriculturalPathologyDataset(external_data_dir=tmp_dir)
+            self.assertIn("At least 2 images are required", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
