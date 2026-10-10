@@ -39,6 +39,17 @@ py::array_t<float> mat_to_numpy_zerocopy_f32(cv::Mat& mat) {
     return py::array_t<float>(shape, strides, reinterpret_cast<float*>(mat.data));
 }
 
+py::array_t<float> mat_to_numpy_copy_f32(const cv::Mat& mat) {
+    if (mat.empty()) return py::array_t<float>();
+    CV_Assert(mat.type() == CV_32FC1);
+    
+    py::array_t<float> result({static_cast<ssize_t>(mat.rows), static_cast<ssize_t>(mat.cols)});
+    py::buffer_info buf = result.request();
+    cv::Mat dst(mat.rows, mat.cols, CV_32FC1, buf.ptr);
+    mat.copyTo(dst);
+    return result;
+}
+
 cv::Mat numpy_to_mat(py::array_t<uint8_t> input_array) {
     py::buffer_info buf = input_array.request();
     int rows = static_cast<int>(buf.shape[0]);
@@ -49,8 +60,11 @@ cv::Mat numpy_to_mat(py::array_t<uint8_t> input_array) {
     return cv::Mat(rows, cols, type, buf.ptr).clone();
 }
 
-cv::Mat numpy_float_to_mat(py::array_t<float> input_array) {
+cv::Mat numpy_float_to_mat(py::array_t<float, py::array::c_style | py::array::forcecast> input_array) {
     py::buffer_info buf = input_array.request();
+    if (buf.ndim != 2) {
+        throw std::invalid_argument("Input array must be a 2D float32 matrix");
+    }
     int rows = static_cast<int>(buf.shape[0]);
     int cols = static_cast<int>(buf.shape[1]);
     
@@ -167,5 +181,28 @@ PYBIND11_MODULE(agri_core, m) {
     py::class_<AnomalyCalculus>(m, "AnomalyCalculus")
         .def(py::init<float, float>(), py::arg("mse_threshold") = 0.06f, py::arg("gaussian_sigma") = 1.5f)
         .def("set_threshold", &AnomalyCalculus::setThreshold)
-        .def("get_threshold", &AnomalyCalculus::getThreshold);
+        .def("get_threshold", &AnomalyCalculus::getThreshold)
+        .def("compute_pixelwise_mse", [](AnomalyCalculus& self,
+                                         py::array_t<float, py::array::c_style | py::array::forcecast> raw,
+                                         py::array_t<float, py::array::c_style | py::array::forcecast> recon) {
+            cv::Mat raw_mat = numpy_float_to_mat(raw);
+            cv::Mat recon_mat = numpy_float_to_mat(recon);
+            cv::Mat heatmap;
+            float mean_mse = self.computePixelwiseMSE(raw_mat, recon_mat, heatmap);
+            return py::make_tuple(mat_to_numpy_copy_f32(heatmap), mean_mse);
+        }, py::arg("raw"), py::arg("recon"))
+        .def("compute_structural_anomaly", [](AnomalyCalculus& self,
+                                              py::array_t<float, py::array::c_style | py::array::forcecast> raw,
+                                              py::array_t<float, py::array::c_style | py::array::forcecast> recon,
+                                              float w_dssim, float w_lncc, float w_mse,
+                                              int window_size, float sigma, float c1, float c2) {
+            cv::Mat raw_mat = numpy_float_to_mat(raw);
+            cv::Mat recon_mat = numpy_float_to_mat(recon);
+            cv::Mat heatmap;
+            float mean_val = self.computeStructuralAnomaly(raw_mat, recon_mat, heatmap, w_dssim, w_lncc, w_mse, window_size, sigma, c1, c2);
+            return py::make_tuple(mat_to_numpy_copy_f32(heatmap), mean_val);
+        }, py::arg("raw"), py::arg("recon"),
+           py::arg("w_dssim") = 0.5f, py::arg("w_lncc") = 0.3f, py::arg("w_mse") = 0.2f,
+           py::arg("window_size") = 11, py::arg("sigma") = 1.5f,
+           py::arg("c1") = 0.0001f, py::arg("c2") = 0.0009f);
 }

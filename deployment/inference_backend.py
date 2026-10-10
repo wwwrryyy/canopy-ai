@@ -179,15 +179,23 @@ class MockInferenceBackend(InferenceBackend):
     Lightweight, deterministic test adapter for unit tests. Requires no weights or heavy frameworks.
     """
 
-    def __init__(self, simulated_class: str = "Pest Infestation", simulated_confidence: float = 0.95):
+    def __init__(
+        self,
+        simulated_class: str = "Pest Infestation",
+        simulated_confidence: float = 0.95,
+        baseline_frame: Optional[np.ndarray] = None,
+    ):
         self.simulated_class = simulated_class
         self.simulated_confidence = simulated_confidence
+        self.baseline_frame = baseline_frame
 
     def despeckle(self, frame_128: np.ndarray) -> np.ndarray:
         return frame_128.copy()
 
     def reconstruct_baseline(self, clean_frame_128: np.ndarray) -> np.ndarray:
         # Returns a smooth baseline image (e.g. uniform mean) so difference heatmaps are easy to test
+        if self.baseline_frame is not None:
+            return self.baseline_frame.copy()
         return np.full_like(clean_frame_128, float(np.mean(clean_frame_128)))
 
     def classify_crop(self, crop_64x64_3ch: np.ndarray) -> Tuple[str, float]:

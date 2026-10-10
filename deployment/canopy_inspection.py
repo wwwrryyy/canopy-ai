@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 
 from canopy_anomaly import CanopyAnomaly
-from difference_engine import DifferenceEngine, create_difference_engine
+from difference_engine import DifferenceConfig, DifferenceEngine, create_difference_engine
 from inference_backend import InferenceBackend, create_inference_backend
 from sensor_intake import SensorIntakeModule, MultispectralCanopyFrame
 
@@ -46,6 +46,7 @@ class CanopyInspectionModule:
         self,
         inference_backend: Optional[InferenceBackend] = None,
         difference_engine: Optional[DifferenceEngine] = None,
+        difference_config: Optional[DifferenceConfig] = None,
         sensor_intake: Optional[SensorIntakeModule] = None,
         mse_threshold: float = 0.001,
         min_area: int = 20,
@@ -53,8 +54,9 @@ class CanopyInspectionModule:
         nms_iou_threshold: float = 0.3,
         gaussian_sigma: float = 1.5,
     ):
+        self.difference_config = difference_config
         self.backend = inference_backend or create_inference_backend()
-        self.diff_engine = difference_engine or create_difference_engine()
+        self.diff_engine = difference_engine or create_difference_engine(config=self.difference_config)
         self.sensor_intake = sensor_intake or SensorIntakeModule(target_size=(128, 128))
         self.mse_threshold = mse_threshold
         self.min_area = min_area
@@ -102,7 +104,9 @@ class CanopyInspectionModule:
         t3 = time.perf_counter()
 
         # 3. Difference heatmap computation
-        heatmap = self.diff_engine.compute_heatmap(clean_2d, recon_2d, sigma=self.gaussian_sigma)
+        heatmap = self.diff_engine.compute_heatmap(
+            clean_2d, recon_2d, sigma=self.gaussian_sigma, config=self.difference_config
+        )
         t4 = time.perf_counter()
 
         # 4. Spatial contour extraction and NMS clustering
