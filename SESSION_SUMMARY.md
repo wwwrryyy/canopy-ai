@@ -1,73 +1,115 @@
-# Architecture Deepening Session Summary: `precision_agriculture`
+# Architecture Deepening & Milestone Session Summary: `precision_agriculture`
 
 - **Date**: October 10, 2026
 - **Repository**: [`precision_agriculture`](https://github.com/wwwrryyy/precision_agriculture) (`origin/main`)
-- **Key Commits**:
+- **Key Commits This Session**:
   - `c03dfca` — `feat(architecture): deepen canopy inspection pipeline and decouple edge seams`
   - `91a0311` — `feat(sensor-intake): deepen sensor ingestion and dynamic multispectral synthesis`
-  - `6197602` — `docs: add architecture deepening session summary for reference`
+  - `1a5f244` — `feat(difference-engine): implement adaptive structural difference calculus with C++ acceleration`
+  - `720de0c` — `feat(classifier): implement Stage 3 pathology synthesis, calibration, and ONNX export`
 
 ---
 
-## 1. Key Problems Discovered & Resolved
+## 1. Key Milestones Completed in This Session
 
-1. **Pipeline Fragmentation**:
-   - **Previous state**: Callers in `drone_deployment_validation.py` had to coordinate 5 separate modules across 100+ lines of orchestration code: manually unpacking 4D tensors, computing difference heatmaps, slicing sub-crops, replicating 1-channel arrays 3×, and manually computing softmax.
-   - **Fix**: Collapsed into [`CanopyInspectionModule`](deployment/canopy_inspection.py): a single deep interface `inspect(payload) -> list[CanopyAnomaly]`.
+### Milestone 1: Stage 2 Adaptive Structural Difference Calculus (Eliminating Cloud Shadow False Alarms)
+1. **Structural Composite Engine**:
+   - Replaced naive pixel MSE subtraction with a multi-scale composite:
+     $$\text{Anomaly Score} = w_{\text{dssim}} \cdot \text{DSSIM} + w_{\text{lncc}} \cdot (1 - \text{LNCC}) + w_{\text{mse}} \cdot \text{MSE}_{\text{local}}$$
+   - **DSSIM**: Structural Dissimilarity capturing leaf necrosis while remaining invariant to uniform illumination shifts.
+   - **Regularized LNCC**: Local Normalized Cross-Correlation distance stabilized to prevent $0/0$ division over textureless soil/water.
+   - **Local MSE**: Gaussian-smoothed residual preserving sensitivity to sharp foliar lesions.
+2. **Preset System (`DifferenceConfig`)**:
+   - `balanced`: General agricultural flight conditions ($0.50 / 0.30 / 0.20$).
+   - `cloud_shadow_resilient`: High-structural weighting suppressing 50% lighting ramps ($0.60 / 0.30 / 0.10$).
+   - `high_sensitivity`: Spectral error weighting for early-stage foliar chlorosis ($0.40 / 0.30 / 0.30$).
+3. **C++ Native Acceleration (`agri_core`)**:
+   - Implemented `computeStructuralAnomaly` in OpenCV C++ with pybind11 bridge.
+   - Enforced 2D C-contiguous input validation and memory-safe buffer copying (`CV_32FC1` assertion).
+   - Numerical parity verified between C++ and Python OpenCV fallback ($< 10^{-4}$ max absolute error).
 
-2. **Critical Telemetry Key Mismatch (Data Loss Bug)**:
-   - **Previous state**: The pipeline emitted keys `{"anomaly_id", "anomaly_type", "confidence", "mse_score", "bbox"}`, while the SQLite persistence method in `sharp_sync_daemon.py` expected `{"id", "type", "score"}`. All logged anomalies were silently stored as ID `0`, type `UNCLASSIFIED_ANOMALY`, and score `0.0`.
-   - **Fix**: Created [`FlightTelemetrySpooler`](deployment/flight_telemetry.py) accepting `CanopyAnomaly` domain objects directly, ensuring correct persistence of pathology classes, calibrated confidences, and coordinates.
-
-3. **Sensor Disconnect & Channel Tripling**:
-   - **Previous state**: Radiometric math (`compute_vegetation_indices.py`) was marooned in offline data prep, while the edge runtime assumed 1-channel grayscale and artificially replicated channels.
-   - **Fix**: Built [`SensorIntakeModule`](deployment/sensor_intake.py), automatically adapting 5-band multispectral, 3-band RGB, or 1-band SAR feeds, synthesizing calibrated **NDVI** and **NDRE** indices, and establishing a single source of truth for radiometric formulas.
-
-4. **SNN Phase-Out Clarification**:
-   - Clarified that earlier Spiking Neural Networks (`SpikingUNet` with $T=8$ LIF neurons) were phased out in favor of single-pass ANNs (U-Net, ConvAutoencoder, MobileNetV3-Small) to eliminate the 4×–8× latency penalty and enable native TensorRT execution on the **NVIDIA Jetson Orin Nano**.
+### Milestone 2: Stage 3 Agricultural Pathology Classifier & Calibration
+1. **Procedural Pathology Dataset Engine ([`models/classifier/dataset.py`](models/classifier/dataset.py))**:
+   - Synthesizes 5 realistic foliar pathology classes on real aerial canopy patches:
+     - `Healthy Canopy`: Natural vegetative patterns and clean crop rows.
+     - `Fungal/Bacterial Disease`: Concentric necrotic lesions with chlorotic yellow halos.
+     - `Pest Infestation`: Chewed void margins, irregular puncture holes, and stippling marks.
+     - `Water Stress`: Diffuse drought chlorosis, desiccation browning, and reduced contrast.
+     - `Weed Invasion`: Broadleaf and foreign vegetative clumping between rows.
+   - Supports plug-and-play loading of external datasets (PlantVillage, Agriculture-Vision, CropDeep).
+2. **Transfer Learning Pipeline ([`models/classifier/train_classifier.py`](models/classifier/train_classifier.py))**:
+   - Pre-trained MobileNetV3-Small backbone fine-tuned with AdamW, Cosine Annealing, and label smoothing.
+   - Decoupled train (augmented) and validation (deterministic, `is_train=False`) datasets.
+   - Deep tensor cloning to prevent in-place optimizer corruption of the best checkpoint.
+3. **Post-Hoc Log-Temperature Scaling Calibration**:
+   - Optimizes scalar log-temperature $\log(T)$ via L-BFGS on validation Negative Log-Likelihood (NLL).
+   - Reduces Expected Calibration Error (ECE) to ensure predicted probabilities match empirical likelihood.
+4. **ONNX Graph Export & Parity ([`models/classifier/export.py`](models/classifier/export.py))**:
+   - Embeds the learned temperature scale natively inside the exported graph so inference directly outputs calibrated logits.
+   - Exported to [`exports/classifier.onnx`](exports/classifier.onnx) with verified numerical parity ($3.40 \times 10^{-6}$ max absolute error vs PyTorch).
+5. **Calibrated Confidence Gating ([`deployment/canopy_inspection.py`](deployment/canopy_inspection.py))**:
+   - Added `min_confidence` parameter (default 0.50). Ambiguous or low-confidence anomaly sub-crops are safely gated as `"Unclassified Crop Stress"` to prompt agronomist verification instead of emitting false class labels.
 
 ---
 
-## 2. Architecture & File Reference
+## 2. Updated Architecture & File Reference
 
 | Module / Seam | File Path | Key Role / Interface |
 |---|---|---|
-| **Domain Glossary** | [`GLOSSARY.md`](GLOSSARY.md) | Canonical domain terms (*Canopy Frame*, *Multispectral Canopy Frame*, *Canopy Anomaly*, etc.) |
-| **Domain Model** | [`deployment/canopy_anomaly.py`](deployment/canopy_anomaly.py) | Strongly-typed `CanopyAnomaly` dataclass with `.to_dict()` and `.from_dict()` |
-| **Canopy Inspection** | [`deployment/canopy_inspection.py`](deployment/canopy_inspection.py) | Deep module: `inspect(payload) -> list[CanopyAnomaly]` |
-| **Sensor Intake** | [`deployment/sensor_intake.py`](deployment/sensor_intake.py) | Ingests multi-band payloads, computes NDVI/NDRE, provides `MultispectralCanopyFrame` |
-| **Inference Seam** | [`deployment/inference_backend.py`](deployment/inference_backend.py) | Swappable `OnnxInferenceBackend`, `PyTorchInferenceBackend`, and `MockInferenceBackend` |
-| **Difference Seam** | [`deployment/difference_engine.py`](deployment/difference_engine.py) | `NativeDifferenceAdapter` (C++) and `OpenCVDifferenceAdapter` (NumPy/cv2) |
-| **Flight Telemetry** | [`deployment/flight_telemetry.py`](deployment/flight_telemetry.py) | Memory-buffered spooler with single-transaction SQLite batch persistence |
-| **Legacy Compatibility** | [`deployment/sharp_sync_daemon.py`](deployment/sharp_sync_daemon.py) | Subclasses `FlightTelemetrySpooler` for 100% backward compatibility |
-| **Offline Radiometry** | [`data_prep/compute_vegetation_indices.py`](data_prep/compute_vegetation_indices.py) | Delegates to `sensor_intake` for consistent NDVI/NDRE math |
+| **Domain Model** | [`deployment/canopy_anomaly.py`](deployment/canopy_anomaly.py) | Strongly-typed `CanopyAnomaly` dataclass |
+| **Canopy Inspection** | [`deployment/canopy_inspection.py`](deployment/canopy_inspection.py) | Deep module: `inspect(payload) -> list[CanopyAnomaly]` with confidence gating |
+| **Sensor Intake** | [`deployment/sensor_intake.py`](deployment/sensor_intake.py) | Adapts 5-band multispectral, 3-band RGB, or 1-band SAR; synthesizes NDVI/NDRE |
+| **Inference Seam** | [`deployment/inference_backend.py`](deployment/inference_backend.py) | Swappable `OnnxInferenceBackend`, `PyTorchInferenceBackend`, `MockInferenceBackend` |
+| **Difference Seam** | [`deployment/difference_engine.py`](deployment/difference_engine.py) | `NativeDifferenceAdapter` (C++ `agri_core`) and `OpenCVDifferenceAdapter` |
+| **C++ Anomaly Engine** | [`cpp_extensions/anomaly_calculus/`](cpp_extensions/anomaly_calculus/) | C++ OpenCV DSSIM + LNCC + MSE extension with pybind11 |
+| **Stage 3 Classifier** | [`models/classifier/classifier.py`](models/classifier/classifier.py) | MobileNetV3-Small architecture with temperature scaling |
+| **Pathology Dataset** | [`models/classifier/dataset.py`](models/classifier/dataset.py) | Procedural foliar pathology generator and external folder loader |
+| **Classifier Training** | [`models/classifier/train_classifier.py`](models/classifier/train_classifier.py) | Transfer learning, log-temperature calibration, checkpointing |
+| **ONNX Exporter** | [`models/classifier/export.py`](models/classifier/export.py) | ONNX export with parity verification |
+| **Flight Telemetry** | [`deployment/flight_telemetry.py`](deployment/flight_telemetry.py) | Memory-buffered spooler with SQLite batch persistence |
 
 ---
 
-## 3. Verification Metrics
+## 3. Verification & Benchmark Summary
 
-- **Automated Tests**: [`tests/`](tests/) contains **14 tests across 3 suites**, all passing in **0.015s**:
+- **Automated Tests**: All **26 tests across 4 test suites pass** in **0.22s**:
   ```bash
-  python -m unittest discover -s tests -p "test_*.py"
+  /opt/homebrew/Caskroom/miniforge/base/envs/battlefield/bin/python -m unittest discover -s tests -p "test_*.py" -v
   ```
 - **Edge Deployment Benchmark**:
   ```bash
   python deployment/drone_deployment_validation.py --frames 15
   ```
-  - **Throughput**: **330.27 FPS** (exceeds the $\ge 10.0$ FPS real-time target by 33×)
-  - **Latency**: Mean 3.03 ms / P50 2.47 ms
-  - **Telemetry Check**: Verified actual classified anomalies (`ID: 1`, `Type: Healthy Canopy`, `Conf: 0.20`, `MSE: 0.0011`) stored in SQLite.
-- **CodeRabbit Review**: Passed with **0 findings**.
+  - **Throughput**: **210.56 FPS** (C++ `agri_core`) / **290.68 FPS** (OpenCV fallback)
+  - **Real-time Target**: Exceeds the $\ge 10.0$ FPS drone threshold by **$20\times$–$29\times$**.
+  - **Mean Latency**: 3.44 ms – 4.75 ms
+- **CodeRabbit Quality Gate**: Completed with **0 critical, 0 warning findings**.
+- **Graphify Watcher**: Master knowledge graph in `/Users/shawnsc/graphify-out` is synchronized and up-to-date.
 
 ---
 
-## 4. Suggested Starting Points for Next Session
+## 4. Next Session Handoff: Adding External Datasets & Scale Training
 
-When you return to this project, here are the three highest-value directions to pick up:
+When returning for the next session, the foundation is completely ready to ingest external datasets:
 
-1. **Stage 2 Anomaly Detection Upgrade**:
-   - Evolve the pixel-subtraction autoencoder to a **Student-Teacher Feature Pyramid (STPM)** using MobileNetV3 feature embeddings, or augment the C++ difference engine with **SSIM/LNCC** filtering to eliminate cloud shadow false alarms.
-2. **Cloud Telemetry Egress Adapter**:
-   - Implement an egress sync adapter in `FlightTelemetrySpooler` for live auto-sync with John Deere Operations Center REST API or MQTT ground station telemetry brokers.
-3. **Jetson Orin Nano Native C++ / TensorRT Bridge**:
-   - Modernize the CMake build configuration in `cpp_extensions/anomaly_calculus/CMakeLists.txt` to compile native TensorRT pybind execution engines across Python environments.
+1. **Add Real External Datasets**:
+   - Download or place external agricultural datasets (e.g., PlantVillage, Agriculture-Vision, or CropDeep) into `data/`:
+     ```text
+     data/external_pathologies/
+     ├── Healthy Canopy/
+     ├── Fungal/Bacterial Disease/
+     ├── Pest Infestation/
+     ├── Water Stress/
+     └── Weed Invasion/
+     ```
+2. **Re-train with External Data**:
+   - Run `train_classifier.py` pointing to the external dataset directory:
+     ```bash
+     /opt/homebrew/Caskroom/miniforge/base/envs/battlefield/bin/python models/classifier/train_classifier.py \
+       --epochs 15 \
+       --batch-size 64 \
+       --output models/classifier/classifier_best.pt \
+       --export-onnx
+     ```
+3. **Verify and Benchmark**:
+   - Re-run `tests/test_classifier.py` and `deployment/drone_deployment_validation.py` to confirm updated ONNX accuracy and throughput.
