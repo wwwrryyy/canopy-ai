@@ -28,9 +28,15 @@ class AgriculturalClassifier(nn.Module):
         in_channels: Input channels (3 for RGB; up to 7 with NIR/RedEdge/NDVI/NDRE).
         num_classes: Number of output classes.
     """
-    def __init__(self, in_channels: int = 3, num_classes: int = len(CLASS_NAMES)):
+    def __init__(self, in_channels: int = 3, num_classes: int = len(CLASS_NAMES), pretrained: bool = False):
         super().__init__()
-        self.net = mobilenet_v3_small(weights=None, num_classes=num_classes)
+        if pretrained:
+            from torchvision.models import MobileNet_V3_Small_Weights
+            self.net = mobilenet_v3_small(weights=MobileNet_V3_Small_Weights.DEFAULT)
+            in_features = self.net.classifier[3].in_features
+            self.net.classifier[3] = nn.Linear(in_features, num_classes)
+        else:
+            self.net = mobilenet_v3_small(weights=None, num_classes=num_classes)
 
         if in_channels != 3:
             first = self.net.features[0][0]

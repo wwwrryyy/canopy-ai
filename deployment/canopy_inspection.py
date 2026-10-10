@@ -53,6 +53,7 @@ class CanopyInspectionModule:
         max_area: int = 15000,
         nms_iou_threshold: float = 0.3,
         gaussian_sigma: float = 1.5,
+        min_confidence: float = 0.50,
     ):
         self.difference_config = difference_config
         self.backend = inference_backend or create_inference_backend()
@@ -63,6 +64,7 @@ class CanopyInspectionModule:
         self.max_area = max_area
         self.nms_iou_threshold = nms_iou_threshold
         self.gaussian_sigma = gaussian_sigma
+        self.min_confidence = min_confidence
 
     def inspect(
         self,
@@ -133,11 +135,14 @@ class CanopyInspectionModule:
                 crop_resized[c_idx] = cv2.resize(crop_3ch[c_idx], (64, 64))
 
             class_name, confidence = self.backend.classify_crop(crop_resized)
+            effective_class = (
+                class_name if confidence >= self.min_confidence else "Unclassified Crop Stress"
+            )
 
             anomalies.append(
                 CanopyAnomaly(
                     anomaly_id=i + 1,
-                    anomaly_type=class_name,
+                    anomaly_type=effective_class,
                     confidence=confidence,
                     mse_score=score,
                     bbox=(x, y, w, h),
