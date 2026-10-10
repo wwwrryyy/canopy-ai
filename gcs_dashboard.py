@@ -7,6 +7,7 @@ detected anomalies and variable-rate application maps on an interactive dashboar
 """
 
 import os
+import time
 import json
 import sqlite3
 import pandas as pd
@@ -16,6 +17,62 @@ from streamlit_folium import st_folium
 
 # Streamlit Page Config
 st.set_page_config(page_title="Canopy AI GCS Dashboard", layout="wide", page_icon="🚁")
+
+# Apply Apple Design Principles via CSS injection
+apple_design_css = """
+<style>
+    /* Typography: system font, tight tracking on headers */
+    :root { font: 100%/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+    h1, h2, h3, h4, h5, h6 { font-optical-sizing: auto; font-weight: 600 !important; }
+    h1 { letter-spacing: -0.02em !important; line-height: 1.05 !important; }
+    h2 { letter-spacing: -0.01em !important; line-height: 1.1 !important; }
+    
+    /* Materials & Depth: Translucency conveying hierarchy */
+    [data-testid="stHeader"] {
+        background: rgba(255, 255, 255, 0.6) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    }
+    [data-testid="stSidebar"] {
+        background: rgba(248, 249, 250, 0.65) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border-right: 1px solid rgba(0,0,0,0.05) !important;
+    }
+    
+    /* Response: Instant feedback on interaction */
+    .stButton > button, .stCheckbox > div {
+        transition: transform 100ms ease-out !important;
+    }
+    .stButton > button:active, .stCheckbox > div:active {
+        transform: scale(0.97) !important;
+    }
+    
+    /* Metrics: Soft shadows and subtle hover states */
+    [data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 16px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease-out !important;
+    }
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px) scale(1.01) !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+    [data-testid="stMetricValue"] {
+        font-weight: 600 !important;
+        letter-spacing: -0.02em !important;
+        color: #1d1d1f !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-weight: 500 !important;
+        color: #86868b !important;
+    }
+</style>
+"""
+st.markdown(apple_design_css, unsafe_allow_html=True)
 
 st.title("🚁 Canopy AI: Precision Agriculture GCS")
 st.markdown("Ground Control Station dashboard for reviewing drone anomaly telemetry and Variable Rate Application (VRA) maps.")
@@ -89,6 +146,17 @@ if not df_logs.empty:
 else:
     df_filtered = pd.DataFrame()
     st.sidebar.warning("No telemetry data found. Is the drone database synced?")
+
+st.sidebar.markdown("---")
+st.sidebar.header("Live Edge Feed")
+auto_refresh = st.sidebar.checkbox("Enable Auto-Refresh", value=False)
+LATEST_FRAME_PATH = "exports/latest_frame.jpg"
+if os.path.exists(LATEST_FRAME_PATH):
+    st.sidebar.image(LATEST_FRAME_PATH, caption="Latest Edge Detection", use_column_width=True)
+else:
+    st.sidebar.info("Waiting for edge node feed...")
+
+
 
 # ---------------------------------------------------------------------------
 # KPI Metrics
@@ -199,3 +267,9 @@ if not df_filtered.empty:
     }), use_container_width=True)
 else:
     st.info("No telemetry logs to display.")
+
+
+# Perform auto-refresh after all page content has rendered
+if auto_refresh:
+    time.sleep(1)
+    st.rerun()

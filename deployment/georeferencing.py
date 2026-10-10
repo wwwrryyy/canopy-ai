@@ -132,3 +132,39 @@ def compute_area_sqm(bbox: Tuple[int, int, int, int], intrinsics: CameraIntrinsi
     )
     _, _, w, h = bbox
     return (w * gsd_x) * (h * gsd_y)
+
+@dataclass
+class GeolocationRecord:
+    gps_lat: float
+    gps_lon: float
+    gps_alt: float
+    area_sqm: float
+    polygon_wgs84: List[Tuple[float, float]]
+
+class GeoreferencingEngine:
+    """
+    Deep module interface encapsulating all GIS projection logic.
+    Converts 2D pixel bounding boxes into 3D WGS84 records.
+    """
+    def project_anomaly(
+        self,
+        bbox: Tuple[int, int, int, int],
+        intrinsics: CameraIntrinsics,
+        telemetry: DroneTelemetry
+    ) -> GeolocationRecord:
+        x, y, w, h = bbox
+        
+        area_sqm = compute_area_sqm(bbox, intrinsics, telemetry)
+        polygon = bbox_to_polygon_wgs84(bbox, intrinsics, telemetry)
+        
+        center_x = x + w / 2.0
+        center_y = y + h / 2.0
+        gps_lat, gps_lon = pixel_to_wgs84(center_x, center_y, intrinsics, telemetry)
+        
+        return GeolocationRecord(
+            gps_lat=gps_lat,
+            gps_lon=gps_lon,
+            gps_alt=telemetry.altitude_m,
+            area_sqm=area_sqm,
+            polygon_wgs84=polygon
+        )

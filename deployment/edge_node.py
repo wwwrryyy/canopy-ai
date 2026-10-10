@@ -99,10 +99,20 @@ def run_edge_node(args):
         # Run inference
         result = inspection_module.inspect_with_diagnostics(frame, telemetry, intrinsics)
         
+        display_frame = frame.copy()
+        
         # Spool anomalies to edge database
         for anomaly in result.anomalies:
             spooler.record(anomaly)
             all_anomalies.append(anomaly)
+            
+            x, y, w, h = anomaly.bounding_box
+            cv2.rectangle(display_frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
+            cv2.putText(display_frame, f"{anomaly.anomaly_type} {anomaly.confidence:.2f}", (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            
+        os.makedirs("exports", exist_ok=True)
+        cv2.imwrite("exports/latest_frame.tmp.jpg", display_frame)
+        os.replace("exports/latest_frame.tmp.jpg", "exports/latest_frame.jpg")
             
         frame_count += 1
         

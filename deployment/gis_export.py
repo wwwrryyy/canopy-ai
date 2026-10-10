@@ -7,7 +7,7 @@ Generates GeoJSON FeatureCollections and Variable-Rate Agronomic Prescription Ma
 
 import json
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from canopy_anomaly import CanopyAnomaly
 
 def export_geojson(anomalies: List[CanopyAnomaly], flight_id: str = "unknown") -> Dict[str, Any]:
@@ -43,7 +43,7 @@ def export_geojson(anomalies: List[CanopyAnomaly], flight_id: str = "unknown") -
         "type": "FeatureCollection",
         "metadata": {
             "flight_id": flight_id,
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "feature_count": len(features)
         },
         "features": features
@@ -91,7 +91,7 @@ def generate_prescription_map(
         "metadata": {
             "flight_id": flight_id,
             "map_type": "VariableRatePrescription",
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "feature_count": len(features)
         },
         "features": features
