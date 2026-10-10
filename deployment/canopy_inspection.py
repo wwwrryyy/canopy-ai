@@ -23,6 +23,7 @@ from canopy_anomaly import CanopyAnomaly
 from difference_engine import DifferenceConfig, DifferenceEngine, create_difference_engine
 from inference_backend import InferenceBackend, create_inference_backend
 from sensor_intake import SensorIntakeModule, MultispectralCanopyFrame
+from georeferencing import DroneTelemetry, CameraIntrinsics, compute_area_sqm, bbox_to_polygon_wgs84
 
 
 @dataclass
@@ -69,22 +70,28 @@ class CanopyInspectionModule:
     def inspect(
         self,
         payload: Union[np.ndarray, Dict[str, Union[np.ndarray, str]], MultispectralCanopyFrame],
+        telemetry: Optional[DroneTelemetry] = None,
+        intrinsics: Optional[CameraIntrinsics] = None,
     ) -> List[CanopyAnomaly]:
         """
         Primary interface: processes sensor payload and returns all detected anomalies.
 
         Args:
             payload: MultispectralCanopyFrame, 2D/3D numpy array, or band path dict.
+            telemetry: Optional flight telemetry for georeferencing.
+            intrinsics: Optional camera intrinsics for georeferencing.
 
         Returns:
             List of detected and classified CanopyAnomaly domain objects.
         """
-        result = self.inspect_with_diagnostics(payload)
+        result = self.inspect_with_diagnostics(payload, telemetry, intrinsics)
         return result.anomalies
 
     def inspect_with_diagnostics(
         self,
         payload: Union[np.ndarray, Dict[str, Union[np.ndarray, str]], MultispectralCanopyFrame],
+        telemetry: Optional[DroneTelemetry] = None,
+        intrinsics: Optional[CameraIntrinsics] = None,
     ) -> CanopyInspectionResult:
         """
         Diagnostic interface: processes sensor feed and returns anomalies with intermediate maps and latencies.
@@ -139,6 +146,18 @@ class CanopyInspectionModule:
                 class_name if confidence >= self.min_confidence else "Unclassified Crop Stress"
             )
 
+            # Optional georeferencing if telemetry is provided
+            gps_lat, gps_lon, gps_alt, area_sqm, polygon_wgs84 = None, None, None, None, None
+            if telemetry is not None and intrinsics is not None:
+                gps_alt = telemetry.altitude_m
+                clipped_box = (x_min, y_min, x_max - x_min, y_max - y_min)
+                area_sqm = compute_area_sqm(clipped_box, intrinsics, telemetry)
+                polygon_wgs84 = bbox_to_polygon_wgs84(clipped_box, intrinsics, telemetry)
+                # We can estimate the center point as the GPS coordinate for the anomaly
+                center_x, center_y = x_min + (x_max - x_min) / 2.0, y_min + (y_max - y_min) / 2.0
+                from georeferencing import pixel_to_wgs84
+                gps_lat, gps_lon = pixel_to_wgs84(center_x, center_y, intrinsics, telemetry)
+
             anomalies.append(
                 CanopyAnomaly(
                     anomaly_id=i + 1,
@@ -147,6 +166,11 @@ class CanopyInspectionModule:
                     mse_score=score,
                     bbox=(x, y, w, h),
                     area_pixels=w * h,
+                    gps_latitude=gps_lat,
+                    gps_longitude=gps_lon,
+                    gps_altitude_m=gps_alt,
+                    estimated_area_sqm=area_sqm,
+                    polygon_wgs84=polygon_wgs84,
                 )
             )
         t6 = time.perf_counter()

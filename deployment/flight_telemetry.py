@@ -58,9 +58,19 @@ class FlightTelemetrySpooler:
                 latitude REAL,
                 longitude REAL,
                 altitude REAL,
+                estimated_area_sqm REAL,
+                polygon_wgs84_json TEXT,
                 synced INTEGER DEFAULT 0
             )
         """)
+        
+        # Schema migration for existing databases
+        existing = {row[1] for row in cur.execute("PRAGMA table_info(anomaly_logs)")}
+        if "estimated_area_sqm" not in existing:
+            cur.execute("ALTER TABLE anomaly_logs ADD COLUMN estimated_area_sqm REAL")
+        if "polygon_wgs84_json" not in existing:
+            cur.execute("ALTER TABLE anomaly_logs ADD COLUMN polygon_wgs84_json TEXT")
+            
         conn.commit()
         conn.close()
 
@@ -86,12 +96,23 @@ class FlightTelemetrySpooler:
             conf = anomaly.confidence
             score = anomaly.mse_score
             bbox_list = list(anomaly.bbox)
+            area_sqm = anomaly.estimated_area_sqm
+            poly_wgs84 = anomaly.polygon_wgs84
+            # If the caller provides lat/lon directly to record(), it overrides the anomaly's fields
+            latitude = latitude if latitude is not None else anomaly.gps_latitude
+            longitude = longitude if longitude is not None else anomaly.gps_longitude
+            altitude = altitude if altitude is not None else anomaly.gps_altitude_m
         else:
             anom_id = anomaly.get("anomaly_id", anomaly.get("id", 0))
             anom_type = anomaly.get("anomaly_type", anomaly.get("type", "UNCLASSIFIED_ANOMALY"))
             conf = float(anomaly.get("confidence", 0.0))
             score = float(anomaly.get("mse_score", anomaly.get("score", 0.0)))
             bbox_list = list(anomaly.get("bbox", []))
+            area_sqm = anomaly.get("estimated_area_sqm")
+            poly_wgs84 = anomaly.get("polygon_wgs84")
+            latitude = latitude if latitude is not None else anomaly.get("gps_latitude")
+            longitude = longitude if longitude is not None else anomaly.get("gps_longitude")
+            altitude = altitude if altitude is not None else anomaly.get("gps_altitude_m")
 
         record_entry = {
             "timestamp": time.time(),
@@ -103,6 +124,8 @@ class FlightTelemetrySpooler:
             "latitude": latitude,
             "longitude": longitude,
             "altitude": altitude,
+            "estimated_area_sqm": area_sqm,
+            "polygon_wgs84_json": json.dumps(poly_wgs84) if poly_wgs84 is not None else None,
         }
 
         with self._lock:
@@ -125,8 +148,8 @@ class FlightTelemetrySpooler:
         cur.executemany("""
             INSERT INTO anomaly_logs (
                 timestamp, anomaly_id, anomaly_type, confidence, mse_score,
-                bbox_json, latitude, longitude, altitude, synced
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                bbox_json, latitude, longitude, altitude, estimated_area_sqm, polygon_wgs84_json, synced
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """, [
             (
                 r["timestamp"],
@@ -138,6 +161,8 @@ class FlightTelemetrySpooler:
                 r["latitude"],
                 r["longitude"],
                 r["altitude"],
+                r["estimated_area_sqm"],
+                r["polygon_wgs84_json"],
             )
             for r in to_write
         ])
@@ -171,7 +196,8 @@ class FlightTelemetrySpooler:
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, timestamp, anomaly_id, anomaly_type, confidence, mse_score, bbox_json, latitude, longitude, altitude, synced
+            SELECT id, timestamp, anomaly_id, anomaly_type, confidence, mse_score, bbox_json, 
+                   latitude, longitude, altitude, estimated_area_sqm, polygon_wgs84_json, synced
             FROM anomaly_logs ORDER BY id DESC LIMIT ?
         """, (limit,))
         rows = cur.fetchall()
@@ -190,7 +216,9 @@ class FlightTelemetrySpooler:
                 "latitude": r[7],
                 "longitude": r[8],
                 "altitude": r[9],
-                "synced": bool(r[10]),
+                "estimated_area_sqm": r[10],
+                "polygon_wgs84": json.loads(r[11]) if r[11] else None,
+                "synced": bool(r[12]),
             })
         return logs
 

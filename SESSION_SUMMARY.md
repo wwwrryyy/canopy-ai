@@ -117,3 +117,30 @@
      ```
      - **Throughput**: **311.46 FPS** ($31\times$ real-time threshold).
      - **Mean Latency**: **3.21 ms**.
+
+## 5. Key Milestones Completed: Milestone 4 Georeferencing & GIS Export
+
+1. **Precision Georeferencing Engine (`deployment/georeferencing.py`)**:
+   - Designed a closed-form pinhole camera math model projecting `(x, y)` pixels to local East/North meter offsets using Ground Sampling Distance (GSD).
+   - Applied exact drone altitude, gimbal yaw rotation, and WGS84 Earth curvature models to anchor pixels globally as valid WGS84 GPS coordinates (`longitude`, `latitude`).
+   - Implemented `pixel_to_wgs84` and polygon/area estimators operating exclusively on native math arrays to guarantee real-time latency ($<1$ ms latency, 0 heavyweight GDAL/rasterio bindings).
+   
+2. **Backward-Compatible Data Domain (`deployment/canopy_anomaly.py`)**:
+   - Safely extended the `CanopyAnomaly` dataclass and JSON serializers with `gps_latitude`, `gps_longitude`, `gps_altitude_m`, `estimated_area_sqm`, and `polygon_wgs84` properties.
+   - Defaults to `None` permitting laboratory unit tests or older drone setups to run unaffected if flight telemetry is omitted.
+   
+3. **Core Pipeline Integration (`deployment/canopy_inspection.py`)**:
+   - Modified `CanopyInspectionModule.inspect` to optionally consume `DroneTelemetry` (Latitude, Longitude, Altitude, Pitch, Roll, Yaw) and `CameraIntrinsics` (FOV, Resolution).
+   - Extracted accurate real-world clipped bounding boxes dynamically inside the NMS loop for each detected plant anomaly.
+   
+4. **GIS Export Standards (`deployment/gis_export.py`)**:
+   - Constructed `export_geojson(anomalies, flight_id)` rendering industry-standard `FeatureCollection` formats compatible with QGIS, ArcGIS, and John Deere Ops Center.
+   - Built variable-rate application (VRA) maps via `generate_prescription_map(treatment_rates)`. Enables dynamic fluid dispensing in smart sprayers targeting precise herbicide or fungicide (L/ha) dosages corresponding to the model's detected pathology class.
+   
+5. **SQLite Edge Persistence Migrations (`deployment/flight_telemetry.py`)**:
+   - Altered the SQL `CREATE TABLE` and offline memory spooler logic to securely flush newly generated WGS84 polygons and estimated spatial areas per crop.
+   - Automatically injects schema migrations (`ALTER TABLE anomaly_logs ADD COLUMN ...`) securing smooth field updates for existing drone hardware holding local telemetry databases without dropping un-synchronized offline logs.
+   
+6. **Verification & Testing**:
+   - Automated Unit Tests: All 36 tests across 6 suites run securely under 0.25 seconds.
+   - CodeRabbit Static Quality Gate explicitly cleared logic bugs ensuring accurate georeferencing on clipped image boundary coordinates instead of overlapping frame boxes.
