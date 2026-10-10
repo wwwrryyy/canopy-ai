@@ -144,3 +144,18 @@
 6. **Verification & Testing**:
    - Automated Unit Tests: All 36 tests across 6 suites run securely under 0.25 seconds.
    - CodeRabbit Static Quality Gate explicitly cleared logic bugs ensuring accurate georeferencing on clipped image boundary coordinates instead of overlapping frame boxes.
+
+## 6. Key Milestones Completed: Milestone 5 Edge Optimization & Containerization
+
+1. **TensorRT INT8 Calibration Dataset (`data_prep/generate_trt_calibration.py`)**:
+   - Sampled 500 representative frames from healthy canopies.
+   - Generated `tensorrt_calibration_dataset.npy` formatted natively as `(N, C, H, W)` in `float32` [0, 1] range to calibrate activation histograms for Jetson Orin Nano TensorRT INT8 conversion without catastrophic accuracy drop.
+
+2. **Edge Node Orchestrator (`deployment/edge_node.py`)**:
+   - Packaged the complete end-to-end `CanopyInspectionModule`, `FlightTelemetrySpooler`, and GIS exporter.
+   - Accepts real-time frame sequences mimicking a 10+ FPS drone flight and outputs VRA (Variable-Rate Application) prescription maps upon completion.
+
+3. **Jetson Containerization (`Dockerfile.jetson` & `docker-compose.yml`)**:
+   - Created ARM64 Linux for Tegra (L4T) deployment image based on `nvcr.io/nvidia/l4t-ml`.
+   - Automates the CMake cross-compilation of the native C++ `agri_core` anomaly extension for Jetson hardware.
+   - Provided `docker-compose.yml` to cleanly map volumes and expose GPU Tensor Cores natively (`runtime: nvidia`).

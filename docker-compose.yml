@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  edge-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
+    image: precision-ag-edge:latest
+    container_name: precision_ag_edge_node
+    restart: unless-stopped
+    # Use nvidia runtime to enable Jetson Tensor Cores and GPU passthrough
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      # Enable TensorRT inference backend
+      - USE_TENSORRT=1 
+    volumes:
+      # Mount drone image ingest directory
+      - ./data/incoming_flight_stream:/app/data:ro
+      # Mount telemetry and models directory
+      - ./exports:/app/exports:rw
+    command: >
+      --input-stream /app/data 
+      --db-path /app/exports/flight_telemetry.db 
+      --export-geojson /app/exports/prescription_map.geojson 
+      --fps 10.0

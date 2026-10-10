@@ -1,0 +1,36 @@
+FROM nvcr.io/nvidia/l4t-ml:r35.2.1-py3
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    build-essential \
+    libopencv-dev \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy python dependencies and install
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Compile the C++ AnomalyCalculus extension for Jetson ARM64
+WORKDIR /app/cpp_extensions/anomaly_calculus
+RUN mkdir build && cd build && \
+    cmake -DPYTHON_EXECUTABLE=$(which python3) .. && \
+    make -j$(nproc) && \
+    make install
+
+# Return to root app directory
+WORKDIR /app
+
+# Setup directories for mounts
+RUN mkdir -p /app/exports /app/data
+
+# Entrypoint for the Edge Node
+ENTRYPOINT ["python3", "deployment/edge_node.py"]
+CMD ["--input-stream", "/app/data", "--db-path", "/app/exports/flight_telemetry.db", "--export-geojson", "/app/exports/prescription_map.geojson", "--fps", "10.0"]
