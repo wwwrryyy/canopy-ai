@@ -14,6 +14,11 @@ echo "[2/3] Starting GCS Dashboard in the background..."
 streamlit run gcs_dashboard.py --server.port 8501 > streamlit.log 2>&1 &
 STREAMLIT_PID=$!
 
+cleanup() {
+    kill "$STREAMLIT_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
 echo "Dashboard starting on http://localhost:8501"
 echo "Please open the dashboard in your browser and enable the 'Auto-Refresh' toggle in the sidebar."
 echo "Waiting 3 seconds for dashboard to initialize..."
@@ -25,5 +30,6 @@ python deployment/edge_node.py --fps 2.0 --input-stream data/ucmerced_prepared/a
 
 echo "Edge node mission complete."
 echo "Cleaning up..."
-kill $STREAMLIT_PID
+cleanup
+trap - EXIT INT TERM
 echo "Done."
