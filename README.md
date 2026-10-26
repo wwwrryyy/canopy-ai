@@ -4,7 +4,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-1.15+-blue.svg)](https://onnxruntime.ai/)
 [![Target Hardware](https://img.shields.io/badge/Edge%20Target-NVIDIA%20Jetson%20Orin%20Nano-76b900.svg)](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **Canopy AI** is an end-to-end autonomous precision agriculture and crop health monitoring system engineered for drone-mounted edge compute. The system processes multispectral, true-color RGB, and synthetic aperture radar (SAR) feeds in real time, detecting localized crop stress (disease, pests, water stress, weed invasion) and projecting anomalies into georeferenced WGS84 coordinates.
 
